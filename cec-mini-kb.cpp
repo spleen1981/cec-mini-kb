@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include "libcec/include/cec.h"
 
+#define KEYPRESS_DURATION 50000
+
 // cecloader.h uses std::cout _without_ including iosfwd or iostream
 // Furthermore is uses cout and not std::cout
 #include <iostream>
@@ -19,11 +21,11 @@ using std::endl;
 #include <signal.h>
 bool exit_now = false;
 int fd=-1;
+
 void handle_signal(int signal)
 {
 	exit_now = true;
 }
-
 
 void emit(int type, int code, int val){
 	struct input_event ie;
@@ -41,19 +43,21 @@ void emit(int type, int code, int val){
 void send_keypress(int key){
 	emit(EV_KEY, key, 1);
 	emit(EV_SYN, SYN_REPORT, 0);
-	usleep(100000);
+	usleep(KEYPRESS_DURATION);
 	emit(EV_KEY, key, 0);
 	emit(EV_SYN, SYN_REPORT, 0);
 }
 
 void on_keypress(void* not_used, const CEC::cec_keypress* msg)
 {
-	int key=-1;
+	if (msg->duration) return; //filter key releases interpreted as additional key presses by libcec, as duration is only given for key release
+
+	int key;
 	std::string key_pressed;
 
 	//CEC keycode ref: https://github.com/Pulse-Eight/libcec/blob/master/include/cectypes.h
 
-	switch( msg->keycode){
+	switch(msg->keycode){
 	case CEC::CEC_USER_CONTROL_CODE_SELECT: { key = KEY_ENTER; break; }
 	case CEC::CEC_USER_CONTROL_CODE_UP: { key = KEY_UP; break; }
 	case CEC::CEC_USER_CONTROL_CODE_DOWN: { key = KEY_DOWN; break; }
@@ -66,12 +70,10 @@ void on_keypress(void* not_used, const CEC::cec_keypress* msg)
 	case CEC::CEC_USER_CONTROL_CODE_F4_YELLOW: { key = KEY_DELETE; break; }
 	default: {
 		std::cout << "Unmapped input: " << static_cast<int>(msg->keycode) << std::endl;
-		break;}
+		return;}
 	};
 
-	if (key!=-1){
 	send_keypress(key);
-	}
 }
 
 int uinput_dev_init(void){
