@@ -68,6 +68,17 @@ void on_keypress(void* not_used, const CEC::cec_keypress* msg)
 	case CEC::CEC_USER_CONTROL_CODE_F2_RED: { key = KEY_LEFTSHIFT; break; }
 	case CEC::CEC_USER_CONTROL_CODE_F3_GREEN: { key = KEY_SPACE; break; }
 	case CEC::CEC_USER_CONTROL_CODE_F4_YELLOW: { key = KEY_DELETE; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER0: { key = KEY_0; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER1: { key = KEY_1; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER2: { key = KEY_2; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER3: { key = KEY_3; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER4: { key = KEY_4; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER5: { key = KEY_5; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER6: { key = KEY_6; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER7: { key = KEY_7; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER8: { key = KEY_8; break; }
+	case CEC::CEC_USER_CONTROL_CODE_NUMBER9: { key = KEY_9; break; }
+
 	default: {
 		std::cout << "Unmapped input: " << static_cast<int>(msg->keycode) << std::endl;
 		return;}
@@ -84,7 +95,7 @@ int uinput_dev_init(void){
 		return fd;
 	/*
 	 * The ioctls below will enable the device that is about to be
-	 * created, to pass key events, in this case the space key.
+	 * created, to pass key events.
 	 */
 	//Key codes ref: https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h
 
@@ -101,6 +112,17 @@ int uinput_dev_init(void){
   	ioctl(fd, UI_SET_KEYBIT, KEY_LEFTSHIFT);
   	ioctl(fd, UI_SET_KEYBIT, KEY_SPACE);
   	ioctl(fd, UI_SET_KEYBIT, KEY_DELETE);
+	ioctl(fd, UI_SET_KEYBIT, KEY_0);
+	ioctl(fd, UI_SET_KEYBIT, KEY_1);
+	ioctl(fd, UI_SET_KEYBIT, KEY_2);
+	ioctl(fd, UI_SET_KEYBIT, KEY_3);
+	ioctl(fd, UI_SET_KEYBIT, KEY_4);
+	ioctl(fd, UI_SET_KEYBIT, KEY_5);
+	ioctl(fd, UI_SET_KEYBIT, KEY_6);
+	ioctl(fd, UI_SET_KEYBIT, KEY_7);
+	ioctl(fd, UI_SET_KEYBIT, KEY_8);
+	ioctl(fd, UI_SET_KEYBIT, KEY_9);
+
 
 	memset(&usetup, 0, sizeof(usetup));
 	usetup.id.bustype = BUS_USB;
