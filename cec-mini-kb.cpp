@@ -21,6 +21,7 @@ using std::endl;
 #include <signal.h>
 bool exit_now = false;
 int fd=-1;
+std::string poweroff_command="";
 
 void handle_signal(int signal)
 {
@@ -46,6 +47,14 @@ void send_keypress(int key){
 	usleep(KEYPRESS_DURATION);
 	emit(EV_KEY, key, 0);
 	emit(EV_SYN, SYN_REPORT, 0);
+}
+
+void on_command(void* not_used, const CEC::cec_command* msg){
+	if (msg->opcode==CEC::CEC_OPCODE_STANDBY){
+		if (system(poweroff_command.c_str())){
+			std::cerr << "Failed to run power-off command: " << poweroff_command << std::endl;
+		}
+	}
 }
 
 void on_keypress(void* not_used, const CEC::cec_keypress* msg)
@@ -81,6 +90,7 @@ void on_keypress(void* not_used, const CEC::cec_keypress* msg)
 
 	default: {
 		std::cout << "Unmapped input: " << static_cast<int>(msg->keycode) << std::endl;
+		std::cout.flush();
 		return;}
 	};
 
@@ -146,6 +156,28 @@ void uinput_dev_deinit(void){
 	}
 }
 
+static void show_usage(std::string name)
+{
+	std::cout << "\nUsage: " << name << " <option(s)>\n"
+		<< "Options:\n"
+		<< "\t-h,--help			Show this help message\n"
+		<< "\t-p,--poweroff COMMAND	Specify a command to be executed from shell when power standby signal is received.\n"
+		<< "\nKey bindings\n"
+		<< "\tCEC_USER_CONTROL_CODE_SELECT: 		KEY_ENTER\n"
+		<< "\tCEC_USER_CONTROL_CODE_UP: 		KEY_UP\n"
+		<< "\tCEC_USER_CONTROL_CODE_DOWN: 		KEY_DOWN\n"
+		<< "\tCEC_USER_CONTROL_CODE_LEFT: 		KEY_LEFT\n"
+		<< "\tCEC_USER_CONTROL_CODE_RIGHT: 		KEY_RIGHT\n"
+		<< "\tCEC_USER_CONTROL_CODE_EXIT: 		KEY_BACKSPACE\n"
+		<< "\tCEC_USER_CONTROL_CODE_F1_BLUE: 		KEY_ESC\n"
+		<< "\tCEC_USER_CONTROL_CODE_F2_RED: 		KEY_LEFTSHIFT\n"
+		<< "\tCEC_USER_CONTROL_CODE_F3_GREEN:		KEY_SPACE\n"
+		<< "\tCEC_USER_CONTROL_CODE_F4_YELLOW: 		KEY_DELETE\n"
+		<< "\tCEC_USER_CONTROL_CODE_NUMBER{0 to 9}:	KEY_{0 to 9}\n"
+		<< std::endl;
+	std::cout.flush();
+}
+
 int main(int argc, char* argv[])
 {
 	int return_value=0;
@@ -156,6 +188,21 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	for (int i = 1; i < argc; ++i) {
+		std::string arg = argv[i];
+		if ((arg == "-h") || (arg == "--help")) {
+			show_usage(argv[0]);
+			return 0;
+		} else if ((arg == "-p") || (arg == "--poweroff")) {
+			if (i + 1 < argc) {
+				i++;
+				poweroff_command = argv[i];
+			} else {
+				std::cerr << "--poweroff option requires one argument." << std::endl;
+				return 1;
+			}
+		}
+	}
 	if (uinput_dev_init()){
 		std::cerr << "Unable to initialize uinput device!\n";
 		return 2;
@@ -176,6 +223,11 @@ int main(int argc, char* argv[])
 	cec_config.deviceTypes.Add(CEC::CEC_DEVICE_TYPE_RECORDING_DEVICE);
 
 	cec_callbacks.keyPress    = &on_keypress;
+
+	if (poweroff_command!="")
+	{
+		cec_callbacks.commandReceived    = &on_command;
+	}
 
 	// Get a cec adapter by initialising the cec library
 	CEC::ICECAdapter* cec_adapter = LibCecInitialise(&cec_config);
