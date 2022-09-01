@@ -1,7 +1,7 @@
 #include <linux/uinput.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include "libcec/include/cec.h"
+#include "libcec/cec.h"
 
 #define KEYPRESS_DURATION 50000
 
@@ -10,7 +10,7 @@
 #include <iostream>
 using std::cout;
 using std::endl;
-#include "libcec/include/cecloader.h"
+#include "libcec/cecloader.h"
 
 #include <algorithm>  // for std::min
 #include <array>
