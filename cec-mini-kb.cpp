@@ -250,11 +250,20 @@ int main(int argc, char* argv[])
 	}}
 
 	// Open a connection to the zeroth CEC device
-	if( !cec_adapter->Open(devices[0].strComName) )
+	if( !cec_adapter->Open(devices[0].strComName))
 	{
 		std::cerr << "Failed to open the CEC device on port " << devices[0].strComName << std::endl;
 		UnloadLibCec(cec_adapter);
 		return_value=5;
+		goto exit;
+	}
+
+	// Activate source
+	if( !cec_adapter->SetActiveSource(cec_config.deviceTypes[0]))
+	{
+		std::cerr << "Failed to become active" << std::endl;
+		UnloadLibCec(cec_adapter);
+		return_value=6;
 		goto exit;
 	}
 
