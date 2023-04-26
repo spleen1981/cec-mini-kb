@@ -177,19 +177,20 @@ static void show_usage(std::string name)
 {
 	std::cout << "\nUsage: " << name << " <option(s)>\n"
 		<< "Options:\n"
-		<< "\t-h,--help			Show this help message\n"
+		<< "\t-h,--help		Show this help message\n"
+		<< "\t-a,--adapter NUM	Adapter to use (0-9, default 0)\n"
 		<< "\t-p,--poweroff COMMAND	Specify a command to be executed from shell when power standby signal is received.\n"
 		<< "\nKey bindings\n"
-		<< "\tCEC_USER_CONTROL_CODE_SELECT: 		KEY_ENTER\n"
-		<< "\tCEC_USER_CONTROL_CODE_UP: 		KEY_UP\n"
-		<< "\tCEC_USER_CONTROL_CODE_DOWN: 		KEY_DOWN\n"
-		<< "\tCEC_USER_CONTROL_CODE_LEFT: 		KEY_LEFT\n"
-		<< "\tCEC_USER_CONTROL_CODE_RIGHT: 		KEY_RIGHT\n"
-		<< "\tCEC_USER_CONTROL_CODE_EXIT: 		KEY_BACKSPACE\n"
-		<< "\tCEC_USER_CONTROL_CODE_F1_BLUE: 		KEY_ESC\n"
-		<< "\tCEC_USER_CONTROL_CODE_F2_RED: 		KEY_LEFTSHIFT\n"
+		<< "\tCEC_USER_CONTROL_CODE_SELECT:		KEY_ENTER\n"
+		<< "\tCEC_USER_CONTROL_CODE_UP:		KEY_UP\n"
+		<< "\tCEC_USER_CONTROL_CODE_DOWN:		KEY_DOWN\n"
+		<< "\tCEC_USER_CONTROL_CODE_LEFT:		KEY_LEFT\n"
+		<< "\tCEC_USER_CONTROL_CODE_RIGHT:		KEY_RIGHT\n"
+		<< "\tCEC_USER_CONTROL_CODE_EXIT:		KEY_BACKSPACE\n"
+		<< "\tCEC_USER_CONTROL_CODE_F1_BLUE:		KEY_ESC\n"
+		<< "\tCEC_USER_CONTROL_CODE_F2_RED:		KEY_LEFTSHIFT\n"
 		<< "\tCEC_USER_CONTROL_CODE_F3_GREEN:		KEY_SPACE\n"
-		<< "\tCEC_USER_CONTROL_CODE_F4_YELLOW: 		KEY_DELETE\n"
+		<< "\tCEC_USER_CONTROL_CODE_F4_YELLOW:	KEY_DELETE\n"
 		<< "\tCEC_USER_CONTROL_CODE_NUMBER{0 to 9}:	KEY_{0 to 9}\n"
 		<< std::endl;
 	std::cout.flush();
@@ -198,6 +199,7 @@ static void show_usage(std::string name)
 int main(int argc, char* argv[])
 {
 	int return_value=0;
+	int adapter_number=0;
 
 	if( SIG_ERR == signal(SIGINT, handle_signal) || SIG_ERR == signal(SIGTERM, handle_signal) )
 	{
@@ -210,6 +212,19 @@ int main(int argc, char* argv[])
 		if ((arg == "-h") || (arg == "--help")) {
 			show_usage(argv[0]);
 			return 0;
+		} else if ((arg == "-a") || (arg == "--adapter")) {
+			if (i + 1 < argc) {
+				i++;
+				char adapter_arg_buf[]={*argv[i], '\0'};
+				adapter_number=atoi(adapter_arg_buf);
+				if ( *argv[i] != '0' && !adapter_number){
+					std::cerr << "--adapter option requires a integer number argument between 0 and 9." << std::endl;
+					return 1;
+				}
+			} else {
+				std::cerr << "--adapter option requires one argument." << std::endl;
+				return 1;
+			}
 		} else if ((arg == "-p") || (arg == "--poweroff")) {
 			if (i + 1 < argc) {
 				i++;
@@ -260,16 +275,23 @@ int main(int argc, char* argv[])
 	{int8_t devices_found = cec_adapter->DetectAdapters(devices.data(), devices.size(), nullptr, true /*quickscan*/);
 	if( devices_found <= 0)
 	{
-		std::cerr << "Could not automatically determine the cec adapter devices\n";
+		std::cerr << "Could not detect the cec adapter devices\n";
 		UnloadLibCec(cec_adapter);
 		return_value=4;
 		goto exit;
+	}
+	else if( devices_found < adapter_number+1)
+	{
+		std::cerr << "The required cec adapter device was not found\n";
+		UnloadLibCec(cec_adapter);
+		return_value=7;
+		goto exit;
 	}}
 
-	// Open a connection to the zeroth CEC device
-	if( !cec_adapter->Open(devices[0].strComName))
+	// Open a connection to the target CEC device
+	if( !cec_adapter->Open(devices[adapter_number].strComName))
 	{
-		std::cerr << "Failed to open the CEC device on port " << devices[0].strComName << std::endl;
+		std::cerr << "Failed to open the CEC device on port " << devices[adapter_number].strComName << std::endl;
 		UnloadLibCec(cec_adapter);
 		return_value=5;
 		goto exit;
