@@ -4,7 +4,9 @@ Small utility to use a CEC remote controller as a mini keyboard in Linux (libcec
 ### Usage
 Typical usage of the tool is within a service loaded at startup or launched with `systemd-run` when needed.
 
-`-p, --poweroff "<command>"` option allows a custom shell command (e.g. `shutdown -P now`) to be called when system standby event (e.g. turning off the monitor/tv from remote) is received. 
+`-p, --poweroff "<command>"` option allows a custom shell command (e.g. `shutdown -P now`) to be called when system standby event (e.g. turning off the monitor/tv from remote) is received.
+
+`-a, --adapter <num>` specify the adapter to use (0-9). Default adapter is 0.
 
 ### Key bindings
  * REMOTE SELECT -> KEY_ENTER
