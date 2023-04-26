@@ -173,19 +173,6 @@ void uinput_dev_deinit(void){
 	}
 }
 
-bool legal_int(char *str)
-{
-    char* end;
-    long int num = std::strtol(str, &end, 10);
-
-    if (*end == '\0') {
-    	return true;
-    }
-    else {
-        return false;
-    }
-}
-
 static void show_usage(std::string name)
 {
 	std::cout << "\nUsage: " << name << " <option(s)>\n"
@@ -228,10 +215,9 @@ int main(int argc, char* argv[])
 		} else if ((arg == "-a") || (arg == "--adapter")) {
 			if (i + 1 < argc) {
 				i++;
-				if (legal_int(argv[i])){
-					adapter_number = atoi(argv[i]);
-				} else {
-					std::cerr << "--adapter option requires a integer number argument." << std::endl;
+				adapter_number = atoi(argv[i]);
+				if ( ( adapter_number == 0 && strcmp(argv[i],"0") != 0 ) || adapter_number < 0 || adapter_number > 9) {
+					std::cerr << "--adapter option requires a integer number argument between 0 and 9." << std::endl;
 					return 1;
 				}
 			} else {
@@ -288,16 +274,23 @@ int main(int argc, char* argv[])
 	{int8_t devices_found = cec_adapter->DetectAdapters(devices.data(), devices.size(), nullptr, true /*quickscan*/);
 	if( devices_found <= 0)
 	{
-		std::cerr << "Could not automatically determine the cec adapter devices\n";
+		std::cerr << "Could not detect the cec adapter devices\n";
 		UnloadLibCec(cec_adapter);
 		return_value=4;
 		goto exit;
+	}
+	else if( devices_found < adapter_number+1)
+	{
+		std::cerr << "The required cec adapter device was not found\n";
+		UnloadLibCec(cec_adapter);
+		return_value=7;
+		goto exit;
 	}}
 
-	// Open a connection to the zeroth CEC device
+	// Open a connection to the target CEC device
 	if( !cec_adapter->Open(devices[adapter_number].strComName))
 	{
-		std::cerr << "Failed to open the CEC device on port " << devices[0].strComName << std::endl;
+		std::cerr << "Failed to open the CEC device on port " << devices[adapter_number].strComName << std::endl;
 		UnloadLibCec(cec_adapter);
 		return_value=5;
 		goto exit;
