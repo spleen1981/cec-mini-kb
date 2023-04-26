@@ -178,7 +178,7 @@ static void show_usage(std::string name)
 	std::cout << "\nUsage: " << name << " <option(s)>\n"
 		<< "Options:\n"
 		<< "\t-h,--help		Show this help message\n"
-		<< "\t-a,--adapter NUM	Adapter to use (default 0)\n"
+		<< "\t-a,--adapter NUM	Adapter to use (0-9, default 0)\n"
 		<< "\t-p,--poweroff COMMAND	Specify a command to be executed from shell when power standby signal is received.\n"
 		<< "\nKey bindings\n"
 		<< "\tCEC_USER_CONTROL_CODE_SELECT:		KEY_ENTER\n"
@@ -215,8 +215,9 @@ int main(int argc, char* argv[])
 		} else if ((arg == "-a") || (arg == "--adapter")) {
 			if (i + 1 < argc) {
 				i++;
-				adapter_number = atoi(argv[i]);
-				if ( ( adapter_number == 0 && strcmp(argv[i],"0") != 0 ) || adapter_number < 0 || adapter_number > 9) {
+				char adapter_arg_buf[]={*argv[i], '\0'};
+				adapter_number=atoi(adapter_arg_buf);
+				if ( *argv[i] != '0' && !adapter_number){
 					std::cerr << "--adapter option requires a integer number argument between 0 and 9." << std::endl;
 					return 1;
 				}
