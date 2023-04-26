@@ -36,6 +36,17 @@ using std::endl;
 
 // The main loop will just continue until a ctrl-C is received
 #include <signal.h>
+
+enum {
+	ERROR_CODE_WRONG_ARGS = 1,
+	ERROR_CODE_UINPUT_DEV_INIT,
+	ERROR_CODE_LIBCEC_LOADING,
+	ERROR_CODE_NO_DEV_FOUND,
+	ERROR_CODE_CANT_OPEN_DEVICE,
+	ERROR_CODE_SOURCE_NOT_ACTIVE,
+	ERROR_CODE_DEV_NOT_FOUND
+} return_value;
+
 bool exit_now = false;
 int fd = -1;
 std::string poweroff_command = "";
@@ -260,7 +271,7 @@ int main(int argc, char *argv[]) {
 
 	if (SIG_ERR == signal(SIGINT, handle_signal) || SIG_ERR == signal(SIGTERM, handle_signal)) {
 		std::cerr << "Failed to install the SIGINT/SIGTERM signal handler\n";
-		return 1;
+		return ERROR_CODE_WRONG_ARGS;
 	}
 
 	for (int i = 1; i < argc; ++i) {
@@ -275,11 +286,11 @@ int main(int argc, char *argv[]) {
 				adapter_number = atoi(adapter_arg_buf);
 				if (*argv[i] != '0' && !adapter_number) {
 					std::cerr << "--adapter option requires a integer number argument between 0 and 9." << std::endl;
-					return 1;
+					return ERROR_CODE_WRONG_ARGS;
 				}
 			} else {
 				std::cerr << "--adapter option requires one argument." << std::endl;
-				return 1;
+				return ERROR_CODE_WRONG_ARGS;
 			}
 		} else if ((arg == "-p") || (arg == "--poweroff")) {
 			if (i + 1 < argc) {
@@ -287,13 +298,13 @@ int main(int argc, char *argv[]) {
 				poweroff_command = argv[i];
 			} else {
 				std::cerr << "--poweroff option requires one argument." << std::endl;
-				return 1;
+				return ERROR_CODE_WRONG_ARGS;
 			}
 		}
 	}
 	if (uinput_dev_init()) {
 		std::cerr << "Unable to initialize uinput device!\n";
-		return 2;
+		return ERROR_CODE_UINPUT_DEV_INIT;
 	}
 
 	// Set up the CEC config and specify the keypress callback function
@@ -320,7 +331,7 @@ int main(int argc, char *argv[]) {
 	CEC::ICECAdapter *cec_adapter = LibCecInitialise(&cec_config);
 	if (!cec_adapter) {
 		std::cerr << "Failed loading libcec.so\n";
-		return_value = 3;
+		return_value = ERROR_CODE_LIBCEC_LOADING;
 		goto exit;
 	}
 
@@ -330,11 +341,11 @@ int main(int argc, char *argv[]) {
 		int8_t devices_found = cec_adapter->DetectAdapters(devices.data(), devices.size(), nullptr, true /*quickscan*/);
 		if (devices_found <= 0) {
 			std::cerr << "Could not detect the cec adapter devices\n";
-			return_value = 4;
+			return_value = ERROR_CODE_NO_DEV_FOUND;
 			goto exit;
 		} else if (devices_found < adapter_number + 1) {
 			std::cerr << "The required cec adapter device was not found\n";
-			return_value = 7;
+			return_value = ERROR_CODE_DEV_NOT_FOUND;
 			goto exit;
 		}
 	}
@@ -342,14 +353,14 @@ int main(int argc, char *argv[]) {
 	// Open a connection to the target CEC device
 	if (!cec_adapter->Open(devices[adapter_number].strComName)) {
 		std::cerr << "Failed to open the CEC device on port " << devices[adapter_number].strComName << std::endl;
-		return_value = 5;
+		return_value = ERROR_CODE_CANT_OPEN_DEVICE;
 		goto exit;
 	}
 
 	// Activate source
 	if (!cec_adapter->SetActiveSource(cec_config.deviceTypes[0])) {
 		std::cerr << "Failed to become active" << std::endl;
-		return_value = 6;
+		return_value = ERROR_CODE_SOURCE_NOT_ACTIVE;
 		goto exit;
 	}
 
