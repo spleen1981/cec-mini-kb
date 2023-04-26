@@ -330,12 +330,10 @@ int main(int argc, char *argv[]) {
 		int8_t devices_found = cec_adapter->DetectAdapters(devices.data(), devices.size(), nullptr, true /*quickscan*/);
 		if (devices_found <= 0) {
 			std::cerr << "Could not detect the cec adapter devices\n";
-			UnloadLibCec(cec_adapter);
 			return_value = 4;
 			goto exit;
 		} else if (devices_found < adapter_number + 1) {
 			std::cerr << "The required cec adapter device was not found\n";
-			UnloadLibCec(cec_adapter);
 			return_value = 7;
 			goto exit;
 		}
@@ -344,7 +342,6 @@ int main(int argc, char *argv[]) {
 	// Open a connection to the target CEC device
 	if (!cec_adapter->Open(devices[adapter_number].strComName)) {
 		std::cerr << "Failed to open the CEC device on port " << devices[adapter_number].strComName << std::endl;
-		UnloadLibCec(cec_adapter);
 		return_value = 5;
 		goto exit;
 	}
@@ -352,7 +349,6 @@ int main(int argc, char *argv[]) {
 	// Activate source
 	if (!cec_adapter->SetActiveSource(cec_config.deviceTypes[0])) {
 		std::cerr << "Failed to become active" << std::endl;
-		UnloadLibCec(cec_adapter);
 		return_value = 6;
 		goto exit;
 	}
