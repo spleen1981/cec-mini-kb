@@ -21,16 +21,21 @@
 #include "libcec/cec.h"
 
 #define KEYPRESS_DURATION 50000
+#define KEYPRESS_SELECT_INTERVAL 500
 
 // cecloader.h uses std::cout _without_ including iosfwd or iostream
 // Furthermore is uses cout and not std::cout
 #include <iostream>
+#include <fstream>
+#include <sstream>
 using std::cout;
 using std::endl;
 #include "libcec/cecloader.h"
 
 #include <algorithm>  // for std::min
 #include <array>
+#include <vector>
+#include <unordered_map>
 #include <chrono>
 #include <thread>
 
@@ -44,12 +49,95 @@ enum {
 	ERROR_CODE_NO_DEV_FOUND,
 	ERROR_CODE_CANT_OPEN_DEVICE,
 	ERROR_CODE_SOURCE_NOT_ACTIVE,
-	ERROR_CODE_DEV_NOT_FOUND
+	ERROR_CODE_DEV_NOT_FOUND,
+	ERROR_CODE_LOAD_MAPPINGS
 } return_value;
 
 bool exit_now = false;
 int fd = -1;
+int last_cec_keypressed_code=-1;
+int last_cec_keypressed_time=-1;
+int last_keypressed_index=-1;
+
+
+std::unordered_map<int, std::vector<std::vector<int>>> bindings_map={
+		{ CEC::CEC_USER_CONTROL_CODE_SELECT , {{KEY_ENTER}}},
+		{ CEC::CEC_USER_CONTROL_CODE_UP , {{KEY_UP }}},
+		{ CEC::CEC_USER_CONTROL_CODE_DOWN , {{KEY_DOWN }}},
+		{ CEC::CEC_USER_CONTROL_CODE_LEFT , {{KEY_LEFT }}},
+		{ CEC::CEC_USER_CONTROL_CODE_RIGHT , {{KEY_RIGHT }}},
+		{ CEC::CEC_USER_CONTROL_CODE_EXIT , {{KEY_BACKSPACE }}},
+		{ CEC::CEC_USER_CONTROL_CODE_F1_BLUE , {{KEY_ESC }}},
+		{ CEC::CEC_USER_CONTROL_CODE_F2_RED , {{KEY_LEFTSHIFT }}},
+		{ CEC::CEC_USER_CONTROL_CODE_F3_GREEN , {{KEY_SPACE }}},
+		{ CEC::CEC_USER_CONTROL_CODE_F4_YELLOW , {{KEY_DELETE }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER0 , {{KEY_0 },{KEY_SPACE }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER1 , {{KEY_1 }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER2 , {{KEY_2 },{KEY_A },{KEY_B },{KEY_C }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER3 , {{KEY_3 },{KEY_D },{KEY_E },{KEY_F }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER4 , {{KEY_4 },{KEY_G },{KEY_H },{KEY_I }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER5 , {{KEY_5 },{KEY_J },{KEY_K },{KEY_K }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER6 , {{KEY_6 },{KEY_M },{KEY_N },{KEY_O }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER7 , {{KEY_7 },{KEY_P },{KEY_Q },{KEY_R },{KEY_S }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER8 , {{KEY_8 },{KEY_T },{KEY_U },{KEY_V }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER9 , {{KEY_9 },{KEY_W },{KEY_X },{KEY_Y },{KEY_Z }}},
+		{ CEC::CEC_USER_CONTROL_CODE_FORWARD , {{KEY_TAB }}},
+		{ CEC::CEC_USER_CONTROL_CODE_BACKWARD , {{KEY_LEFTSHIFT,KEY_TAB}}}
+	};
+
 std::string poweroff_command = "";
+
+void load_bindings_map(std::ifstream &infile) {
+	bindings_map = { };
+
+	std::string line;
+	while (std::getline(infile, line)) {
+		for (int i = 0; i < line.length(); i++) {// remove spaces
+		    if (line[i] == ' ') {
+		    	line.erase(i, 1);
+		        i--;
+		    }
+		}
+		size_t pos = line.find(';');
+		if (pos != std::string::npos) {// remove comments
+			line.erase(pos);
+		}
+		if (line.empty()) { // skip empty lines
+			continue;
+		}
+		std::stringstream ss(line);
+		std::string key_str, value_str;
+		if (std::getline(ss, key_str, ':') && std::getline(ss, value_str)) {
+			int clave = std::stoi(key_str);
+			std::stringstream ss_value(value_str);
+			std::string array_str;
+			std::vector<std::vector<int>> array_2d;
+			while (std::getline(ss_value, array_str, ',')) {
+				std::stringstream ss_array(array_str);
+				std::vector<int> array;
+				int value;
+				while (ss_array >> value) {
+					array.push_back(value);
+					if (ss_array.peek() == '+')
+						ss_array.ignore();
+				}
+				array_2d.push_back(array);
+			}
+			bindings_map[clave] = array_2d;
+		}
+	}
+
+	for (auto &pair : bindings_map) {
+		std::cout << pair.first << ":";
+		for (auto &array : pair.second) {
+			for (auto &element : array) {
+				std::cout << element << "+";
+			}
+			std::cout << ",";
+		}
+		std::cout << "\n";
+	}
+}
 
 void handle_signal(int signal) {
 	exit_now = true;
@@ -68,11 +156,15 @@ void emit(int type, int code, int val) {
 	write(fd, &ie, sizeof(ie));
 }
 
-void send_keypress(int key) {
-	emit(EV_KEY, key, 1);
+void send_keypresses(std::vector<int> keys) {
+	for (auto& key : keys) {
+		emit(EV_KEY, key, 1);
+	}
 	emit(EV_SYN, SYN_REPORT, 0);
 	usleep(KEYPRESS_DURATION);
-	emit(EV_KEY, key, 0);
+	for (auto& key : keys) {
+		emit(EV_KEY, key, 0);
+	}
 	emit(EV_SYN, SYN_REPORT, 0);
 }
 
@@ -87,101 +179,32 @@ void on_command(void *not_used, const CEC::cec_command *msg) {
 void on_keypress(void *not_used, const CEC::cec_keypress *msg) {
 	if (msg->duration) return; //filter key releases interpreted as additional key presses by libcec, as duration is only given for key release
 
-	int key;
-	std::string key_pressed;
 
 	//CEC keycode ref: https://github.com/Pulse-Eight/libcec/blob/master/include/cectypes.h
+	if ( bindings_map.count(msg->keycode)) {
+		std::vector<std::vector<int>> key_groups=bindings_map[msg->keycode];
 
-	switch (msg->keycode) {
-	case CEC::CEC_USER_CONTROL_CODE_SELECT: {
-		key = KEY_ENTER;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_UP: {
-		key = KEY_UP;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_DOWN: {
-		key = KEY_DOWN;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_LEFT: {
-		key = KEY_LEFT;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_RIGHT: {
-		key = KEY_RIGHT;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_EXIT: {
-		key = KEY_BACKSPACE;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_F1_BLUE: {
-		key = KEY_ESC;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_F2_RED: {
-		key = KEY_LEFTSHIFT;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_F3_GREEN: {
-		key = KEY_SPACE;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_F4_YELLOW: {
-		key = KEY_DELETE;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER0: {
-		key = KEY_0;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER1: {
-		key = KEY_1;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER2: {
-		key = KEY_2;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER3: {
-		key = KEY_3;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER4: {
-		key = KEY_4;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER5: {
-		key = KEY_5;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER6: {
-		key = KEY_6;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER7: {
-		key = KEY_7;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER8: {
-		key = KEY_8;
-		break;
-	}
-	case CEC::CEC_USER_CONTROL_CODE_NUMBER9: {
-		key = KEY_9;
-		break;
-	}
+		int now= std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-	default: {
+		if (msg->keycode==last_cec_keypressed_code && (now-last_cec_keypressed_time)<KEYPRESS_SELECT_INTERVAL){
+			last_keypressed_index++;
+			last_keypressed_index%=key_groups.size();
+			send_keypresses({KEY_BACKSPACE });
+		}
+		else{
+			last_cec_keypressed_code=msg->keycode;
+			last_keypressed_index=0;
+		}
+		last_cec_keypressed_time=now;
+
+		std::vector<int> keys=key_groups[last_keypressed_index];
+		send_keypresses(keys);
+	}else{
 		std::cout << "Unmapped input: " << static_cast<int>(msg->keycode) << std::endl;
 		std::cout.flush();
 		return;
 	}
-	};
 
-	send_keypress(key);
 }
 
 int uinput_dev_init(void) {
@@ -199,27 +222,15 @@ int uinput_dev_init(void) {
 	ioctl(fd, UI_SET_EVBIT, EV_KEY);
 	ioctl(fd, UI_SET_EVBIT, EV_SYN);
 
-	ioctl(fd, UI_SET_KEYBIT, KEY_UP);
-	ioctl(fd, UI_SET_KEYBIT, KEY_DOWN);
-	ioctl(fd, UI_SET_KEYBIT, KEY_LEFT);
-	ioctl(fd, UI_SET_KEYBIT, KEY_RIGHT);
-	ioctl(fd, UI_SET_KEYBIT, KEY_ENTER);
-	ioctl(fd, UI_SET_KEYBIT, KEY_BACKSPACE);
-	ioctl(fd, UI_SET_KEYBIT, KEY_ESC);
-	ioctl(fd, UI_SET_KEYBIT, KEY_LEFTSHIFT);
-	ioctl(fd, UI_SET_KEYBIT, KEY_SPACE);
-	ioctl(fd, UI_SET_KEYBIT, KEY_DELETE);
-	ioctl(fd, UI_SET_KEYBIT, KEY_0);
-	ioctl(fd, UI_SET_KEYBIT, KEY_1);
-	ioctl(fd, UI_SET_KEYBIT, KEY_2);
-	ioctl(fd, UI_SET_KEYBIT, KEY_3);
-	ioctl(fd, UI_SET_KEYBIT, KEY_4);
-	ioctl(fd, UI_SET_KEYBIT, KEY_5);
-	ioctl(fd, UI_SET_KEYBIT, KEY_6);
-	ioctl(fd, UI_SET_KEYBIT, KEY_7);
-	ioctl(fd, UI_SET_KEYBIT, KEY_8);
-	ioctl(fd, UI_SET_KEYBIT, KEY_9);
-
+	for (auto const& cec_input : bindings_map) {
+		for (auto& key_groups : cec_input.second ) {
+			for (auto& key_code : key_groups) {
+				ioctl(fd, UI_SET_KEYBIT, key_code);
+				std::cout << "init: " << static_cast<int>(key_code) << std::endl;
+				std::cout.flush();
+			}
+		}
+	}
 
 	memset(&usetup, 0, sizeof(usetup));
 	usetup.id.bustype = BUS_USB;
@@ -248,8 +259,9 @@ static void show_usage(std::string name) {
 	          << "Options:\n"
 	          << "\t-h,--help		Show this help message\n"
 	          << "\t-a,--adapter NUM	Adapter to use (0-9, default 0)\n"
-	          << "\t-p,--poweroff COMMAND	Specify a command to be executed from shell when power standby signal is received.\n"
-	          << "\nKey bindings\n"
+	          << "\t-b,--bindings FILE	Specify a map bindings file\n"
+			  << "\t-p,--poweroff COMMAND	Specify a command to be executed from shell when power standby signal is received.\n"
+	          << "\nDefault key bindings\n"
 	          << "\tCEC_USER_CONTROL_CODE_SELECT:		KEY_ENTER\n"
 	          << "\tCEC_USER_CONTROL_CODE_UP:		KEY_UP\n"
 	          << "\tCEC_USER_CONTROL_CODE_DOWN:		KEY_DOWN\n"
@@ -260,15 +272,16 @@ static void show_usage(std::string name) {
 	          << "\tCEC_USER_CONTROL_CODE_F2_RED:		KEY_LEFTSHIFT\n"
 	          << "\tCEC_USER_CONTROL_CODE_F3_GREEN:		KEY_SPACE\n"
 	          << "\tCEC_USER_CONTROL_CODE_F4_YELLOW:	KEY_DELETE\n"
-	          << "\tCEC_USER_CONTROL_CODE_NUMBER{0 to 9}:	KEY_{0 to 9}\n"
-	          << std::endl;
+	          << "\tCEC_USER_CONTROL_CODE_FORWARD:	KEY_TAB\n"
+	          << "\tCEC_USER_CONTROL_CODE_BACKWARD:	KEY_LEFTSHIFT + KEY_TAB (key combination)\n"
+	          << "\tCEC_USER_CONTROL_CODE_NUMBER{0 to 9}:	KEY_{0 to 9} and ABC DEF ... WXYZ with multiple presses, like old cellphones\n"
+			  << std::endl;
 	std::cout.flush();
 }
 
 int main(int argc, char *argv[]) {
 	int return_value = 0;
 	int adapter_number = 0;
-
 	if (SIG_ERR == signal(SIGINT, handle_signal) || SIG_ERR == signal(SIGTERM, handle_signal)) {
 		std::cerr << "Failed to install the SIGINT/SIGTERM signal handler\n";
 		return ERROR_CODE_WRONG_ARGS;
@@ -292,6 +305,19 @@ int main(int argc, char *argv[]) {
 				std::cerr << "--adapter option requires one argument." << std::endl;
 				return ERROR_CODE_WRONG_ARGS;
 			}
+		} else if ((arg == "-b") || (arg == "--bindings")) {
+					if (i + 1 < argc) {
+						i++;
+						std::ifstream infile(argv[i]); // Abre el archivo
+						if (!infile) { // Verifica si el archivo se abrió correctamente
+							std::cerr << "Unable to open mappings file.";
+						    return ERROR_CODE_LOAD_MAPPINGS;
+						}
+						load_bindings_map(infile);
+					} else {
+						std::cerr << "--bindings option requires bindings map file name." << std::endl;
+						return ERROR_CODE_WRONG_ARGS;
+					}
 		} else if ((arg == "-p") || (arg == "--poweroff")) {
 			if (i + 1 < argc) {
 				i++;
