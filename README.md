@@ -11,7 +11,7 @@ Typical usage of the tool is within a service loaded at startup or launched with
 `-b, --bindings <file>` specify the bindings map file name. See **map.txt** example file.
 
 ### Key bindings
- * REMOTE SELECT -> KEY_ENTER
+ * REMOTE SELECT -> KEY ENTER
  * REMOTE UP -> KEY UP
  * REMOTE DOWN -> KEY DOWN
  * REMOTE LEFT -> KEY LEFT
@@ -22,5 +22,5 @@ Typical usage of the tool is within a service loaded at startup or launched with
  * REMOTE GREEN -> KEY SPACE
  * REMOTE YELLOW -> KEY DELETE
  * REMOTE {0 to 9} -> KEY {0 to 9} (or ABC DEF ... WXYZ with multiple presses, like old cellphones)
- * REMOTE FORWARD -> KEY_TAB
- * REMOTE BACKFORWARD -> KEY_LEFTSHIFT + KEY_TAB
+ * REMOTE FORWARD -> KEY TAB
+ * REMOTE BACKFORWARD -> KEY LEFTSHIFT + KEY TAB
