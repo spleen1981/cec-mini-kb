@@ -127,7 +127,7 @@ void load_bindings_map(std::ifstream &infile) {
 		}
 	}
 
-// testinf
+// testing
 //	for (auto &pair : bindings_map) {
 //		std::cout << pair.first << ":";
 //		for (auto &array : pair.second) {
@@ -180,7 +180,6 @@ void on_command(void *not_used, const CEC::cec_command *msg) {
 void on_keypress(void *not_used, const CEC::cec_keypress *msg) {
 	if (msg->duration) return; //filter key releases interpreted as additional key presses by libcec, as duration is only given for key release
 
-
 	//CEC keycode ref: https://github.com/Pulse-Eight/libcec/blob/master/include/cectypes.h
 	if ( bindings_map.count(msg->keycode)) {
 		std::vector<std::vector<int>> key_groups=bindings_map[msg->keycode];
@@ -227,8 +226,6 @@ int uinput_dev_init(void) {
 		for (auto& key_groups : cec_input.second ) {
 			for (auto& key_code : key_groups) {
 				ioctl(fd, UI_SET_KEYBIT, key_code);
-				std::cout << "init: " << static_cast<int>(key_code) << std::endl;
-				std::cout.flush();
 			}
 		}
 	}
