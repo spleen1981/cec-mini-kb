@@ -127,16 +127,17 @@ void load_bindings_map(std::ifstream &infile) {
 		}
 	}
 
-	for (auto &pair : bindings_map) {
-		std::cout << pair.first << ":";
-		for (auto &array : pair.second) {
-			for (auto &element : array) {
-				std::cout << element << "+";
-			}
-			std::cout << ",";
-		}
-		std::cout << "\n";
-	}
+// testinf
+//	for (auto &pair : bindings_map) {
+//		std::cout << pair.first << ":";
+//		for (auto &array : pair.second) {
+//			for (auto &element : array) {
+//				std::cout << element << "+";
+//			}
+//			std::cout << ",";
+//		}
+//		std::cout << "\n";
+//	}
 }
 
 void handle_signal(int signal) {
@@ -308,8 +309,8 @@ int main(int argc, char *argv[]) {
 		} else if ((arg == "-b") || (arg == "--bindings")) {
 					if (i + 1 < argc) {
 						i++;
-						std::ifstream infile(argv[i]); // Abre el archivo
-						if (!infile) { // Verifica si el archivo se abrió correctamente
+						std::ifstream infile(argv[i]);
+						if (!infile) {
 							std::cerr << "Unable to open mappings file.";
 						    return ERROR_CODE_LOAD_MAPPINGS;
 						}
