@@ -23,4 +23,4 @@ Typical usage of the tool is within a service loaded at startup or launched with
  * REMOTE YELLOW -> KEY DELETE
  * REMOTE {0 to 9} -> KEY {0 to 9} (or ABC DEF ... WXYZ with multiple presses, like old cellphones)
  * REMOTE FORWARD -> KEY TAB
- * REMOTE BACKFORWARD -> KEY LEFTSHIFT + KEY TAB
+ * REMOTE BACKWARD -> KEY LEFTSHIFT + KEY TAB
