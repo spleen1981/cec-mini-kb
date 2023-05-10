@@ -2,31 +2,31 @@
 ; the format of the mappings is:
 ; CEC_CODE : KEY_CODE [ + KEY_CODE [ + ... ] ] [ , KEY_CODE [ + KEY_CODE [ + KEY_CODE [ + ... ] ] ] , ... 
 ; '+' for keystroke combinations and ',' for key groups or combinations (for repeated keystrokes)
-Below the example mappings are all CEC codes and key codes.
- 
-0 : 28                      ; CEC_CODE_SELECT : KEY_ENTER
-115 : 57                    ; CEC_CODE_UP : KEY_UP 
-1 : 103                     ; CEC_CODE_DOWN : KEY_DOWN 
-116 : 111                   ; CEC_CODE_LEFT : KEY_LEFT 
-2 : 108                     ; CEC_CODE_RIGHT : KEY_RIGHT 
-3 : 105                     ; CEC_CODE_EXIT : KEY_BACKSPACE 
-4 : 106                     ; CEC_CODE_F1_BLUE : KEY_ESC 
-13 : 14                     ; CEC_CODE_F2_RED : KEY_LEFTSHIFT 
-36 : 5,34,35,23             ; CEC_CODE_F3_GREEN : KEY_SPACE 
-113 : 1                     ; CEC_CODE_F4_YELLOW : KEY_DELETE 
-114 : 42                    ; CEC_CODE_NUMBER0 : KEY_0 , KEY_SPACE 
-32 : 11,57                  ; CEC_CODE_NUMBER1 : KEY_1 
-33 : 2                      ; CEC_CODE_NUMBER2 : KEY_2 , KEY_A , KEY_B , KEY_C 
-34 : 3,30,48,46             ; CEC_CODE_NUMBER3 : KEY_3 , KEY_D , KEY_E , KEY_F 
-35 : 4,32,18,33             ; CEC_CODE_NUMBER4 : KEY_4 , KEY_G , KEY_H , KEY_I 
-37 : 6,36,37,37             ; CEC_CODE_NUMBER5 : KEY_5 , KEY_J , KEY_K , KEY_K 
-38 : 7,50,49,24             ; CEC_CODE_NUMBER6 : KEY_6 , KEY_M , KEY_N , KEY_O 
-39 : 8,25,16,19,31          ; CEC_CODE_NUMBER7 : KEY_7 , KEY_P , KEY_Q , KEY_R , KEY_S 
-40 : 9,20,22,47             ; CEC_CODE_NUMBER8 : KEY_8 , KEY_T , KEY_U , KEY_V 
-41 : 10,17,45,21,44         ; CEC_CODE_NUMBER9 : KEY_9 , KEY_W , KEY_X , KEY_Y , KEY_Z 
-75 : 15                     ; CEC_CODE_FORWARD : KEY_TAB 
-76 : 42+15                  ; CEC_CODE_BACKWARD : KEY_LEFTSHIFT + KEY_TAB
-
+; Below the example mappings are all CEC codes and key codes.
+;
+0   : 28                     ; CEC_CODE_SELECT : KEY_ENTER
+1   : 103                    ; CEC_CODE_UP : KEY_UP
+2   : 108                    ; CEC_CODE_DOWN : KEY_DOWN 
+3   : 105                    ; CEC_CODE_LEFT : KEY_LEFT
+4   : 106                    ; CEC_CODE_RIGHT : KEY_RIGHT 
+13  : 14                     ; CEC_CODE_EXIT : KEY_BACKSPACE 
+113 : 1                      ; CEC_CODE_F1_BLUE : KEY_ESC  
+114 : 42                     ; CEC_CODE_F2_RED : KEY_LEFTSHIFT 
+115 : 57                     ; CEC_CODE_F3_GREEN : KEY_SPACE 
+116 : 111                    ; CEC_CODE_F4_YELLOW : KEY_DELETE 
+32  : 11,57                  ; CEC_CODE_NUMBER0 : KEY_0 , KEY_SPACE             
+33  : 2                      ; CEC_CODE_NUMBER1 : KEY_1                         
+34  : 3,30,48,46             ; CEC_CODE_NUMBER2 : KEY_2 , KEY_A , KEY_B , KEY_C 
+35  : 4,32,18,33             ; CEC_CODE_NUMBER3 : KEY_3 , KEY_D , KEY_E , KEY_F 
+36  : 5,34,35,23             ; CEC_CODE_NUMBER4 : KEY_4 , KEY_G , KEY_H , KEY_I 
+37  : 6,36,37,37             ; CEC_CODE_NUMBER5 : KEY_5 , KEY_J , KEY_K , KEY_K 
+38  : 7,50,49,24             ; CEC_CODE_NUMBER6 : KEY_6 , KEY_M , KEY_N , KEY_O 
+39  : 8,25,16,19,31          ; CEC_CODE_NUMBER7 : KEY_7 , KEY_P , KEY_Q , KEY_R , KEY_S 
+40  : 9,20,22,47             ; CEC_CODE_NUMBER8 : KEY_8 , KEY_T , KEY_U , KEY_V 
+41  : 10,17,45,21,44         ; CEC_CODE_NUMBER9 : KEY_9 , KEY_W , KEY_X , KEY_Y , KEY_Z 
+75  : 15                     ; CEC_CODE_FORWARD : KEY_TAB 
+76  : 42 + 15                ; CEC_CODE_BACKWARD : KEY_LEFTSHIFT + KEY_TAB
+;
 ; CEC CODES (if in doubt leave unmapped and see the result on the screen)
 ; ---------
 ; CEC_CODE_SELECT                         0
