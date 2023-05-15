@@ -8,8 +8,10 @@ Typical usage of the tool is within a service loaded at startup or launched with
 
 `-a, --adapter <num>` specify the adapter to use (0-9). Default adapter is 0.
 
+`-b, --bindings <file>` specify the bindings map file name. See **map.txt** example file.
+
 ### Key bindings
- * REMOTE SELECT -> KEY_ENTER
+ * REMOTE SELECT -> KEY ENTER
  * REMOTE UP -> KEY UP
  * REMOTE DOWN -> KEY DOWN
  * REMOTE LEFT -> KEY LEFT
@@ -19,4 +21,6 @@ Typical usage of the tool is within a service loaded at startup or launched with
  * REMOTE RED -> KEY LEFT SHIFT
  * REMOTE GREEN -> KEY SPACE
  * REMOTE YELLOW -> KEY DELETE
- * REMOTE {0 to 9} -> KEY {0 to 9}
+ * REMOTE {0 to 9} -> KEY {0 to 9} (or ABC DEF ... WXYZ with multiple presses, like old cellphones)
+ * REMOTE FORWARD -> KEY TAB
+ * REMOTE BACKWARD -> KEY LEFTSHIFT + KEY TAB
