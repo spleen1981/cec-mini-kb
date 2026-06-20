@@ -54,6 +54,7 @@ enum {
 } return_value;
 
 bool exit_now = false;
+volatile sig_atomic_t shutdown_tv = false;
 int fd = -1;
 int last_cec_keypressed_code=-1;
 int last_cec_keypressed_time=-1;
@@ -141,6 +142,9 @@ void load_bindings_map(std::ifstream &infile) {
 }
 
 void handle_signal(int signal) {
+	if (signal == SIGUSR1 ) {
+		shutdown_tv = true;
+	}
 	exit_now = true;
 }
 
@@ -285,6 +289,11 @@ int main(int argc, char *argv[]) {
 		return ERROR_CODE_WRONG_ARGS;
 	}
 
+	if (SIG_ERR == signal(SIGUSR1, handle_signal)) {
+		std::cerr << "Failed to install the SIGUSR1 signal handler, TV shutdown by triggering SIGUSR1 won't be available\n";
+	}
+
+
 	for (int i = 1; i < argc; ++i) {
 		std::string arg = argv[i];
 		if ((arg == "-h") || (arg == "--help")) {
@@ -395,6 +404,11 @@ int main(int argc, char *argv[]) {
 	}
 
 exit:
+	//Shut down TV if required
+	if (shutdown_tv) {
+		if (!cec_adapter->StandbyDevices(CEC::CECDEVICE_BROADCAST))
+			std::cerr << "Failed to turn off TV\n";
+	}
 	// Close down and cleanup
 	cec_adapter->Close();
 	UnloadLibCec(cec_adapter);
