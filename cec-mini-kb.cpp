@@ -33,6 +33,9 @@ using std::endl;
 #include "libcec/cecloader.h"
 
 #include <algorithm>  // for std::min
+#include <cstdlib>    // for strtol, system
+#include <cstring>    // for memset, strcpy
+#include <cstdio>     // for perror
 #include <array>
 #include <vector>
 #include <unordered_map>
@@ -42,7 +45,7 @@ using std::endl;
 // The main loop will just continue until a ctrl-C is received
 #include <signal.h>
 
-enum {
+enum ErrorCode {
 	ERROR_CODE_WRONG_ARGS = 1,
 	ERROR_CODE_UINPUT_DEV_INIT,
 	ERROR_CODE_LIBCEC_LOADING,
@@ -51,14 +54,15 @@ enum {
 	ERROR_CODE_SOURCE_NOT_ACTIVE,
 	ERROR_CODE_DEV_NOT_FOUND,
 	ERROR_CODE_LOAD_MAPPINGS
-} return_value;
+};
 
-bool exit_now = false;
+volatile sig_atomic_t exit_now = false;
 volatile sig_atomic_t shutdown_tv = false;
+volatile sig_atomic_t poweroff_requested = false;
 int fd = -1;
-int last_cec_keypressed_code=-1;
-int last_cec_keypressed_time=-1;
-int last_keypressed_index=-1;
+int     last_cec_keypressed_code = -1;
+int64_t last_cec_keypressed_time = -1;
+int     last_keypressed_index = -1;
 
 
 std::unordered_map<int, std::vector<std::vector<int>>> bindings_map={
@@ -77,7 +81,7 @@ std::unordered_map<int, std::vector<std::vector<int>>> bindings_map={
 		{ CEC::CEC_USER_CONTROL_CODE_NUMBER2 , {{KEY_2 },{KEY_A },{KEY_B },{KEY_C }}},
 		{ CEC::CEC_USER_CONTROL_CODE_NUMBER3 , {{KEY_3 },{KEY_D },{KEY_E },{KEY_F }}},
 		{ CEC::CEC_USER_CONTROL_CODE_NUMBER4 , {{KEY_4 },{KEY_G },{KEY_H },{KEY_I }}},
-		{ CEC::CEC_USER_CONTROL_CODE_NUMBER5 , {{KEY_5 },{KEY_J },{KEY_K },{KEY_K }}},
+		{ CEC::CEC_USER_CONTROL_CODE_NUMBER5 , {{KEY_5 },{KEY_J },{KEY_K },{KEY_L }}},
 		{ CEC::CEC_USER_CONTROL_CODE_NUMBER6 , {{KEY_6 },{KEY_M },{KEY_N },{KEY_O }}},
 		{ CEC::CEC_USER_CONTROL_CODE_NUMBER7 , {{KEY_7 },{KEY_P },{KEY_Q },{KEY_R },{KEY_S }}},
 		{ CEC::CEC_USER_CONTROL_CODE_NUMBER8 , {{KEY_8 },{KEY_T },{KEY_U },{KEY_V }}},
@@ -93,7 +97,7 @@ void load_bindings_map(std::ifstream &infile) {
 
 	std::string line;
 	while (std::getline(infile, line)) {
-		for (int i = 0; i < line.length(); i++) {// remove spaces
+		for (size_t i = 0; i < line.length(); i++) {// remove spaces
 		    if (line[i] == ' ') {
 		    	line.erase(i, 1);
 		        i--;
@@ -109,7 +113,13 @@ void load_bindings_map(std::ifstream &infile) {
 		std::stringstream ss(line);
 		std::string key_str, value_str;
 		if (std::getline(ss, key_str, ':') && std::getline(ss, value_str)) {
-			int clave = std::stoi(key_str);
+			int clave;
+			try {
+				clave = std::stoi(key_str);
+			} catch (const std::exception&) {
+				std::cerr << "Skipping malformed bindings line: " << line << std::endl;
+				continue;
+			}
 			std::stringstream ss_value(value_str);
 			std::string array_str;
 			std::vector<std::vector<int>> array_2d;
@@ -127,18 +137,6 @@ void load_bindings_map(std::ifstream &infile) {
 			bindings_map[clave] = array_2d;
 		}
 	}
-
-// testing
-//	for (auto &pair : bindings_map) {
-//		std::cout << pair.first << ":";
-//		for (auto &array : pair.second) {
-//			for (auto &element : array) {
-//				std::cout << element << "+";
-//			}
-//			std::cout << ",";
-//		}
-//		std::cout << "\n";
-//	}
 }
 
 void handle_signal(int signal) {
@@ -158,7 +156,9 @@ void emit(int type, int code, int val) {
 	ie.time.tv_sec = 0;
 	ie.time.tv_usec = 0;
 
-	write(fd, &ie, sizeof(ie));
+	ssize_t n = write(fd, &ie, sizeof(ie));
+	if (n != static_cast<ssize_t>(sizeof(ie)))
+		perror("uinput write");
 }
 
 void send_keypresses(std::vector<int> keys) {
@@ -174,10 +174,10 @@ void send_keypresses(std::vector<int> keys) {
 }
 
 void on_command(void *not_used, const CEC::cec_command *msg) {
+	// Just flag the request; the actual command is run on the main thread
+	// to avoid blocking the libcec callback thread inside system().
 	if (msg->opcode == CEC::CEC_OPCODE_STANDBY) {
-		if (system(poweroff_command.c_str())) {
-			std::cerr << "Failed to run power-off command: " << poweroff_command << std::endl;
-		}
+		poweroff_requested = true;
 	}
 }
 
@@ -188,7 +188,8 @@ void on_keypress(void *not_used, const CEC::cec_keypress *msg) {
 	if ( bindings_map.count(msg->keycode)) {
 		std::vector<std::vector<int>> key_groups=bindings_map[msg->keycode];
 
-		int now= std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now().time_since_epoch()).count();
 
 		if (msg->keycode==last_cec_keypressed_code && (now-last_cec_keypressed_time)<KEYPRESS_SELECT_INTERVAL){
 			last_keypressed_index++;
@@ -223,13 +224,14 @@ int uinput_dev_init(void) {
 	 */
 	//Key codes ref: https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h
 
-	ioctl(fd, UI_SET_EVBIT, EV_KEY);
-	ioctl(fd, UI_SET_EVBIT, EV_SYN);
+	if (ioctl(fd, UI_SET_EVBIT, EV_KEY) < 0) perror("UI_SET_EVBIT EV_KEY");
+	if (ioctl(fd, UI_SET_EVBIT, EV_SYN) < 0) perror("UI_SET_EVBIT EV_SYN");
 
 	for (auto const& cec_input : bindings_map) {
 		for (auto& key_groups : cec_input.second ) {
 			for (auto& key_code : key_groups) {
-				ioctl(fd, UI_SET_KEYBIT, key_code);
+				if (ioctl(fd, UI_SET_KEYBIT, key_code) < 0)
+					perror("UI_SET_KEYBIT");
 			}
 		}
 	}
@@ -240,9 +242,13 @@ int uinput_dev_init(void) {
 	usetup.id.product = 0x5678; /* sample product */
 	strcpy(usetup.name, "cec-mini-kb");
 
-	ioctl(fd, UI_DEV_SETUP, &usetup);
+	if (ioctl(fd, UI_DEV_SETUP, &usetup) < 0)
+		perror("UI_DEV_SETUP");
 
 	if (ioctl(fd, UI_DEV_CREATE, NULL) < 0) {
+		perror("UI_DEV_CREATE");
+		close(fd);
+		fd = -1;
 		return -1;
 	}
 
@@ -250,9 +256,10 @@ int uinput_dev_init(void) {
 }
 
 void uinput_dev_deinit(void) {
-	if (fd) {
+	if (fd >= 0) {
 		ioctl(fd, UI_DEV_DESTROY);
 		close(fd);
+		fd = -1;
 	}
 }
 
@@ -302,12 +309,13 @@ int main(int argc, char *argv[]) {
 		} else if ((arg == "-a") || (arg == "--adapter")) {
 			if (i + 1 < argc) {
 				i++;
-				char adapter_arg_buf[] = {*argv[i], '\0'};
-				adapter_number = atoi(adapter_arg_buf);
-				if (*argv[i] != '0' && !adapter_number) {
-					std::cerr << "--adapter option requires a integer number argument between 0 and 9." << std::endl;
+				char *endp = nullptr;
+				long n = strtol(argv[i], &endp, 10);
+				if (*argv[i] == '\0' || *endp != '\0' || n < 0 || n > 9) {
+					std::cerr << "--adapter option requires an integer number argument between 0 and 9." << std::endl;
 					return ERROR_CODE_WRONG_ARGS;
 				}
+				adapter_number = static_cast<int>(n);
 			} else {
 				std::cerr << "--adapter option requires one argument." << std::endl;
 				return ERROR_CODE_WRONG_ARGS;
@@ -347,7 +355,10 @@ int main(int argc, char *argv[]) {
 	cec_callbacks.Clear();
 
 	const std::string devicename("CEC_device");
-	devicename.copy(cec_config.strDeviceName, std::min(devicename.size(), static_cast<std::string::size_type>(13)));
+	std::string::size_type name_len = std::min(devicename.size(),
+			static_cast<std::string::size_type>(sizeof(cec_config.strDeviceName) - 1));
+	devicename.copy(cec_config.strDeviceName, name_len);
+	cec_config.strDeviceName[name_len] = '\0';
 
 	cec_config.clientVersion       = CEC::LIBCEC_VERSION_CURRENT;
 	cec_config.bActivateSource     = 0;
@@ -399,8 +410,15 @@ int main(int argc, char *argv[]) {
 
 	// Loop until ctrl-C occurs
 	while (!exit_now) {
-		// nothing to do.  All happens in the CEC callback on another thread
-		std::this_thread::sleep_for(std::chrono::seconds(1));
+		// Keypress handling happens in the CEC callback on another thread.
+		// The power-off command is run here to keep the callback thread
+		// from blocking inside system().
+		if (poweroff_requested) {
+			poweroff_requested = false;
+			if (system(poweroff_command.c_str()))
+				std::cerr << "Failed to run power-off command: " << poweroff_command << std::endl;
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 	}
 
 exit:
