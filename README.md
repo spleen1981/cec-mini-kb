@@ -10,10 +10,9 @@ Typical usage of the tool is within a service loaded at startup or launched with
 
 `-b, --bindings <file>` specify the bindings map file name. See **map.txt** example file.
 
-TV can be turned off on exit by triggering SIGUSR1, using e.g.:
-`killall -SIGUSR1 cec-mini-kb`
-or
-`kill -SIGUSR1 <PID>`
+TV can be turned off on exit by triggering SIGUSR1, using:
+
+`kill -s USR1 <PID>`
 
 ### Key bindings
  * REMOTE SELECT -> KEY ENTER
